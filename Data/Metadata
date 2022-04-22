@@ -1,0 +1,25 @@
+Metadata for Stickleback_CNP.csv
+
+Column Header:	description
+ID:	Unique host ID
+Sex:	fish sex (F = female, M = male, ? = undeveloped)
+standard_length_mm:	standard length of fish in mm
+wet_weight_fish_mg:	wet weight of entire fish in mg
+dry_weight_fish_mg:	dry weight of fish in mg
+tapeworm_presence:	host infection status (yes = infected; no = uninfected)
+tapeworm_intensity:	number of S. solidus
+wet_weight_worm_mg:	wet weight of entire worm in mg
+dry_weight_worm_mg:	dry weight of entier worm in mg
+fibrosis_score:	Fibrosis scoring
+percentN_fish:	total % Nitrogen of fish
+percentN_worm:	total % Nitrogen of S. solidus
+percentC_fish:	total % Carbon of fish
+percentC_worm:	total % Carbon of S. solidus
+percentP_fish:	total % Phosphorus of fish
+percentP_worm:	total % Phosphorus of S. soildus
+CNmolar_fish:	Carbon: Nitrogen molar ratio of fish
+CNmolar_cestode:	Carbon: Nitrogen molar ratio of S. solidus
+CPmolar_fish:	Carbon: Phosphorus molar ratio of fish
+CPmolar_cestode:	Carbon: Phosphorus  molar ratio of S. solidus
+NPmolar_fish:	Nitrogen: Phosphorus molar ratio fo fish
+NPmolar_cestode:	Nitrogen: Phosphorus molar ratio fo S. solidus
