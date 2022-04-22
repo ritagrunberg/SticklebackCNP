@@ -63,25 +63,49 @@ check.model <- function(mod, data) {
 ```
 
 
-```{r data cleaning}
+```{r data cleaning and summary information}
 
 #remove fish not analyzed for CNP
-
 stickstoich <- stickstoich %>% drop_na(percentN_fish) # NA in percent N means fish was not analyzed for CNP
 
 #df now has 52 fish 
 stickstoich %>% filter(tapeworm_presence == 'yes') %>% summarise(total_fish = n_distinct(ID))
+
+#note remove host 20.030 (parasite too small to analyze, parasite ~ 0.1 mg wet mass)
+stickstoich %>% filter(tapeworm_presence == 'yes') %>% filter(percentN_worm > 0)%>%
+  summarise(total_fish = n_distinct(ID))
+
+stickstoich <- stickstoich %>% filter(!ID ==20.030)
+
+#sample size for uninfected fish 
 stickstoich %>% filter(tapeworm_presence == 'no') %>% summarise(total_fish = n_distinct(ID))
+
 
 ```
 
-First paired t-test to asses whether stickleback and S. solidus elemental composition differ
+First paired t-test to asses whether stickleback and S. solidus elemental composition differ for infected individuals only
 
 ```{r host parasite stoichiometry differ}
-t.test(stickstoich$percentC_fish, stickstoich$percentC_worm, paired=TRUE)
-t.test(stickstoich$percentN_fish, stickstoich$percentN_worm, paired=TRUE)
-t.test(stickstoich$percentP_fish, stickstoich$percentP_worm, paired=TRUE)
+stick_infected <- stickstoich %>% filter(tapeworm_presence == 'yes')
 
+t.test(stick_infected$percentC_worm,stick_infected$percentC_fish, paired=TRUE)
+t.test(stick_infected$percentN_worm, stick_infected$percentN_fish, paired=TRUE)
+t.test(stick_infected$percentP_worm,stick_infected$percentP_fish, paired=TRUE)
+
+stick_meanC <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+  summarise_at(c('percentC_fish', 'percentC_worm'),
+               funs(mean, sd, se=sd(.)/sqrt(n()))
+               )%>% mutate(Element = "C")
+
+stick_meanN <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+  summarise_at(c( 'percentN_fish', 'percentN_worm'),        
+               funs(mean, sd, se=sd(.)/sqrt(n()))
+               )%>% mutate(Element = "N")
+
+stick_meanP <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+  summarise_at(c('percentP_fish', 'percentP_worm'), 
+               funs(mean, sd, se=sd(.)/sqrt(n()))
+               )%>% mutate(Element = "P")
 # next look at ratios 
 ```
 
