@@ -80,12 +80,11 @@ stickstoich <- stickstoich %>% filter(!ID ==20.030)
 #sample size for uninfected fish 
 stickstoich %>% filter(tapeworm_presence == 'no') %>% summarise(total_fish = n_distinct(ID))
 
-
 ```
 
 First paired t-test to asses whether stickleback and S. solidus elemental composition differ for infected individuals only
 
-```{r host parasite stoichiometry differ}
+```{r host parasite stoichiometry t-test}
 stick_infected <- stickstoich %>% filter(tapeworm_presence == 'yes')
 
 t.test(stick_infected$percentC_worm,stick_infected$percentC_fish, paired=TRUE)
@@ -107,6 +106,20 @@ stick_meanP <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
                funs(mean, sd, se=sd(.)/sqrt(n()))
                )%>% mutate(Element = "P")
 # next look at ratios 
+t.test(stick_infected$CNmolar_cestode,stick_infected$CNmolar_fish, paired=TRUE)
+t.test(stick_infected$CPmolar_cestode, stick_infected$CPmolar_fish, paired=TRUE)
+t.test(stick_infected$NPmolar_cestode,stick_infected$NPmolar_fish, paired=TRUE)
+
+
+```
+```{r host parasite stoichiometry correlation}
+cor.test(stick_infected$percentC_worm,stick_infected$percentC_fish)
+cor.test(stick_infected$percentN_worm, stick_infected$percentN_fish)
+cor.test(stick_infected$percentP_worm,stick_infected$percentP_fish)
+
+cor.test(stick_infected$CNmolar_fish,stick_infected$CNmolar_cestode)
+cor.test(stick_infected$CPmolar_fish, stick_infected$CPmolar_cestode)
+cor.test(stick_infected$NPmolar_fish,stick_infected$NPmolar_cestode)
 ```
 
 Here we are looking at the relationship between host body condition and CNP, and whether infection interacts with the relationship between body conditon and stoich
