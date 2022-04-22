@@ -1,0 +1,200 @@
+---
+title: "Stickleback CNP"
+author: "Rita Grunberg"
+date: "4/27/2021"
+output: html_document
+---
+
+```{r setup,  results='hide', message=FALSE, warning=FALSE}
+rm(list = ls())  # clear Rs brain 
+
+library(readr)   # read csv file in - easy
+library(tidyr)   # tidying data
+library(dplyr)   # manipulating df
+library(ggplot2) # graphing
+library(ggpubr)  # nice package for figures
+library(cowplot) # plot grid
+
+stickstoich <- read_csv("C:/Users/grunberg/Documents/GitHub/SticklebackCNP/Data/Stickleback_CNP.csv")
+
+```
+
+Add graphical theme I use for plotting
+
+```{r formatting}
+rita_theme <-  theme_classic(base_size = 15)+
+  theme(legend.title = element_text(size=7, face="bold"),
+        legend.text = element_text(size=6.5),
+        legend.position=c(0.15,0.18),
+        axis.line = element_line(colour = 'black', size = 0.75),
+        axis.ticks = element_line(colour = "black", size = 0.75),
+        axis.text.x = element_text(size=12,  colour = "black"), 
+        axis.text.y = element_text(size=12,  colour = "black"), # bold
+        axis.title.y = element_text(size=14, colour = "black")
+  )
+
+```
+
+Here I make a function to check linear models 
+
+```{r function to check models}
+check.model <- function(mod, data) {
+  residdf <- dplyr::mutate(data, resids = residuals(mod),
+                           fits = fitted(mod))
+  fig2 <-ggplot(residdf, aes(x = fits, y = resids)) + 
+    geom_point() +
+    labs(x = 'Fitted values', y = 'Residuals')+
+    geom_hline(yintercept = 0)+
+    theme_bw()
+  
+  fig3 <- ggplot(residdf) + 
+    stat_qq(aes(sample = resids)) +
+    labs(x = 'Theoretical Quantiles', y = 'Sample Quantiles')+ 
+    theme_bw()
+  
+  fig4 <- ggplot(residdf, aes(x = resids)) + geom_histogram(aes(y=..density..), colour = 'grey50') +
+    labs(x = 'Residuals', y = 'Frequency') + scale_y_continuous(expand = c(0, 0)) +
+    stat_function(fun = dnorm, color = "red", args = list(mean = mean(residdf$resids),
+                                                          sd = sd(residdf$resids)))+ theme_bw()
+
+  ggarrange(fig2, fig3, fig4, ncol = 1)  
+  return( ggarrange(fig2, fig3, fig4) )
+}
+```
+
+
+```{r data cleaning}
+
+#remove fish not analyzed for CNP
+
+stickstoich <- stickstoich %>% drop_na(percentN_fish) # NA in percent N means fish was not analyzed for CNP
+
+#df now has 52 fish 
+stickstoich %>% filter(tapeworm_presence == 'yes') %>% summarise(total_fish = n_distinct(ID))
+stickstoich %>% filter(tapeworm_presence == 'no') %>% summarise(total_fish = n_distinct(ID))
+
+```
+
+First paired t-test to asses whether stickleback and S. solidus elemental composition differ
+
+```{r host parasite stoichiometry differ}
+t.test(stickstoich$percentC_fish, stickstoich$percentC_worm, paired=TRUE)
+t.test(stickstoich$percentN_fish, stickstoich$percentN_worm, paired=TRUE)
+t.test(stickstoich$percentP_fish, stickstoich$percentP_worm, paired=TRUE)
+
+# next look at ratios 
+```
+
+Here we are looking at the relationship between host body condition and CNP, and whether infection interacts with the relationship between body conditon and stoich
+
+```{r sticke and parasite correlation}
+Carbon <-stickstoich%>% ggplot()+
+  geom_point(aes(x=percentC_fish, y = percentC_worm), pch=21, size=2)+rita_theme+ labs(x= "%C stickleback", y="%C schistocephalus")+
+  xlim(c(20,60))+   ylim(c(20,60)) +
+  geom_smooth(aes(x=percentC_fish, y = percentC_worm),method='lm',se=FALSE)+
+  geom_abline(intercept = 0, slope = 1, lty=2)
+
+carbon.mod <-lm(percentC_worm~ percentC_fish, data=stickstoich)
+summary(carbon.mod)
+
+Nitrogen <-stickstoich%>% ggplot()+
+  geom_point(aes(x=percentN_fish, y = percentN_worm), pch=21, size=2)+rita_theme+ labs(x= "%N stickleback", y="%N schistocephalus")+
+  xlim(c(5,14))+   ylim(c(5,14)) +
+    geom_smooth(aes(x=percentN_fish, y = percentN_worm),method='lm',se=FALSE)+
+   geom_abline(intercept = 0, slope = 1, lty=2)
+
+nitrogen.mod <-lm(percentN_worm~ percentN_fish, data=stickstoich)
+summary(nitrogen.mod)
+
+Phosphorus <-stickstoich%>% ggplot()+
+  geom_point(aes(x=percentP_fish, y = percentP_worm), pch=21, size=2)+rita_theme+ labs(x= "%P stickleback", y="%P schistocephalus")+
+   xlim(c(1,7))+   ylim(c(1,7)) +
+    geom_smooth(aes(x=percentP_fish, y = percentP_worm),method='lm',se=FALSE)+
+   geom_abline(intercept = 0, slope = 1, lty=2)
+
+phosph.mod <-lm(percentP_worm~ percentP_fish, data=stickstoich)
+summary(phosph.mod)
+
+CN <-stickstoich%>% ggplot()+
+  geom_point(aes(x=CNmolar_fish, y = CNmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "C:N stickleback", y="C:N schistocephalus")+
+  xlim(c(1,3.5))+   ylim(c(1,3.5)) +
+    geom_smooth(aes(x=CNmolar_fish, y = CNmolar_cestode),method='lm',se=FALSE)+
+   geom_abline(intercept = 0, slope = 1, lty=2)
+
+cn.mod <-lm(CNmolar_cestode~ CNmolar_fish, data=stickstoich)
+summary(cn.mod)
+
+CP <-stickstoich%>% ggplot()+
+  geom_point(aes(x=CPmolar_fish, y = CPmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "C:P stickleback", y="C:P schistocephalus")+
+  xlim(c(6,40))+   ylim(c(6,40)) +
+    geom_smooth(aes(x=CPmolar_fish, y = CPmolar_cestode),method='lm',se=FALSE)+
+   geom_abline(intercept = 0, slope = 1, lty=2)
+
+cp.mod <-lm(CPmolar_cestode~ CPmolar_fish, data=stickstoich)
+summary(cp.mod)
+
+NP <-stickstoich%>% ggplot()+
+  geom_point(aes(x=NPmolar_fish, y = NPmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "N:P stickleback", y="N:P schistocephalus")+
+   xlim(c(2,25))+   ylim(c(2,25)) +
+    geom_smooth(aes(x=NPmolar_fish, y = NPmolar_cestode),method='lm',se=FALSE)+
+   geom_abline(intercept = 0, slope = 1, lty=2)
+
+np.mod <-lm(NPmolar_cestode~ NPmolar_fish, data=stickstoich)
+summary(np.mod)
+
+#jpeg(file="Stickleback_CNP.jpeg", width = 270, height = 180, units = 'mm', res = 300)
+ggarrange(Carbon, Nitrogen, Phosphorus, 
+          CN, CP, NP, ncol=3, nrow=2)
+#dev.off()
+```
+
+```{r infection related to host stoichiometry}
+C.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
+  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= percentC_fish )) +rita_theme +labs(y="%C fish", x = "")
+
+N.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
+  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= percentN_fish )) +rita_theme +labs(y="%N fish", x = "")
+
+P.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
+  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= percentP_fish )) +rita_theme +labs(y="%P fish", x = "")
+
+
+CN.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
+  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= CNmolar_fish )) +rita_theme +labs(y="C:N fish", x = "")
+
+CP.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
+  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= CPmolar_fish )) +rita_theme +labs(y="C:P fish", x = "")
+
+NP.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
+  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= NPmolar_fish )) +rita_theme +labs(y="N:P fish", x = "")
+
+#jpeg(file="Stickleback_infection_stoich.jpeg", width = 270, height = 180, units = 'mm', res = 300)
+ggarrange(C.infect, N.infect, P.infect,
+          CN.infect, CP.infect, NP.infect, ncol=3, nrow=2)
+#dev.off()
+```
+```{r infection intensity}
+
+allCN <-stickstoich %>%# filter(tapeworm_presence=="yes")%>%
+  drop_na(Sex)%>%
+  ggplot() +
+  geom_point(aes(x= tapeworm_intensity, y = CNmolar_fish), pch=21, size=2)+rita_theme+
+  geom_smooth(aes(x= tapeworm_intensity, y = CNmolar_fish), method='lm', se=FALSE)+
+  labs(x="Schistocephalus infection intensity", y="C:N fish")
+
+sexCN <-stickstoich %>%# filter(tapeworm_presence=="yes")%>%
+  drop_na(Sex)%>%
+  ggplot() +
+  geom_point(aes(x= tapeworm_intensity, y = CNmolar_fish), pch=21, size=2)+rita_theme+
+  geom_smooth(aes(x= tapeworm_intensity, y = CNmolar_fish), method='lm', se=FALSE)+
+  labs(x="Schistocephalus infection intensity", y="C:N fish")+facet_wrap(~Sex)
+
+cn.infection <-lm(CNmolar_fish ~ tapeworm_intensity *Sex, data= stickstoich)
+summary(cn.infection)
+
+jpeg(file="Stickleback_intensity_CN.jpeg", width = 90, height = 90, units = 'mm', res = 300)
+allCN
+dev.off()
+
+
+```
