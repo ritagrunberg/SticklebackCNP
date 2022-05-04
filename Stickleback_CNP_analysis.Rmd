@@ -45,7 +45,7 @@ stickstoich <- stickstoich %>% drop_na(percentN_fish) # NA in percent N means fi
 #df now has 52 fish 
 stickstoich %>% filter(tapeworm_presence == 'yes') %>% summarise(total_fish = n_distinct(ID))
 
-#note remove host 20.030 for paired stoichiometry analysis (parasite too small to analyze, parasite ~ 0.1 mg wet mass, also had no CNP values )
+#note remove host  for paired stoichiometry analysis (parasite too small to analyze, parasite ~ 0.1 mg wet mass, also had no CNP values)
 stickstoich %>% filter(tapeworm_presence == 'yes') %>% filter(percentN_worm > 0)%>%
   summarise(total_fish = n_distinct(ID))
 
@@ -56,28 +56,133 @@ stickstoich %>% filter(tapeworm_presence == 'no') %>% summarise(total_fish = n_d
 plot(wet_weight_fish_mg ~ standard_length_mm, stickstoich)
 hist(stickstoich$dry_weight_worm_mg, col = "grey70")
 plot(dry_weight_worm_mg ~ wet_weight_worm_mg, data = stickstoich) #dry mass of worm is clearly off for one observation 
+
+stickstoich <- stickstoich %>% mutate(total_biomass = dry_weight_fish_mg  + dry_weight_worm_mg, 
+                                      prop_parasite = dry_weight_worm_mg/total_biomass,
+                                      C_infectpheno = (percentC_fish*(dry_weight_fish_mg/total_biomass)) +
+                                        (percentC_worm*(dry_weight_worm_mg/total_biomass)),
+                                       N_infectpheno = (percentN_fish*(dry_weight_fish_mg/total_biomass)) +
+                                        (percentN_worm*(dry_weight_worm_mg/total_biomass)),
+                                       P_infectpheno = (percentP_fish*(dry_weight_fish_mg/total_biomass)) +
+                                        (percentP_worm*(dry_weight_worm_mg/total_biomass))
+                                      )
+
+stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+  filter(!ID ==20.030) %>%
+  filter(!ID==20.039)%>%
+    summarise_at(c('prop_parasite'),
+               funs(mean,max, sd, se=sd(.)/sqrt(n())))
+```
+
+```{r infection phenotype CNP}
+infect.pheno <-stickstoich %>% 
+  filter(!ID ==20.030)%>%
+  filter(!ID ==20.011)
+
+jitter <- position_jitter(width = 0.1, height = 0)
+
+C.pheno <-infect.pheno %>% gather(tissue, C, c(13,25))%>% 
+  group_by(tissue, tapeworm_presence)%>%
+  mutate(mean_C = mean(C),
+         sd_C = sd(C),
+         se_C=sd(C)/sqrt(n()),
+        lower.CL = mean_C - se_C,
+         upper.CL = mean_C + se_C)%>%
+  ungroup()%>% 
+  drop_na(mean_C)%>%
+  mutate(infect.tissue = paste(tapeworm_presence, tissue, sep = "_"))%>% # combine info for plotting purposes 
+  ggplot(aes(x=infect.tissue, y = C))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x=infect.tissue, y = C), pch=21, position = jitter, alpha=0.3)+
+  geom_point(aes(x= infect.tissue,y = mean_C, color=infect.tissue), size=2)+
+  scale_color_manual(values=c("#636363", "#000000", "#000000"))+
+  guides(color=FALSE)+
+  rita_theme+labs(x="", y="Stickleback %C")+
+  scale_x_discrete(labels=c("no_percentC_fish" = "Host (uninfected)",
+                            "yes_C_infectpheno" = "Host + parasite",
+                            "yes_percentC_fish" = "Host (infected)"))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.0, hjust=0.0))
+
+t.test(infect.pheno$percentC_worm,infect.pheno$C_infectpheno, paired=TRUE)
+
+#### nitrogen 
+N.pheno <-infect.pheno %>% gather(tissue, N, c(11,26))%>%
+  group_by(tissue, tapeworm_presence)%>%
+  mutate(mean_N = mean(N),
+         sd_N = sd(N),
+         se_N=sd(N)/sqrt(n()),
+        lower.CL = mean_N - se_N,
+         upper.CL = mean_N + se_N)%>%  
+  ungroup()%>%
+  drop_na(mean_N)%>%
+  mutate(infect.tissue = paste(tapeworm_presence, tissue, sep = "_"))%>%
+  ggplot(aes(x=infect.tissue, y = N))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x=infect.tissue, y = N), pch=21, position = jitter, alpha=0.3)+
+  geom_point(aes(x= infect.tissue,y = mean_N, color=infect.tissue), size=2)+
+  rita_theme+labs(x="", y="Stickleback %N")+
+  scale_color_manual(values=c("#636363", "#000000", "#000000"))+
+  guides(color=FALSE)+
+  scale_x_discrete(labels=c("no_percentN_fish" = "Host (uninfected)",
+                            "yes_N_infectpheno" = "Host + parasite",
+                            "yes_percentN_fish" = "Host (infected)"))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.0, hjust=0.0))
+
+t.test(infect.pheno$percentN_worm,infect.pheno$N_infectpheno, paired=TRUE)
+
+##### phosphorus 
+P.pheno <-infect.pheno %>% 
+  gather(tissue, P, c(15,27))%>%
+  group_by(tissue, tapeworm_presence)%>%
+  mutate(mean_P = mean(P),
+         sd_P = sd(P),
+         se_P=sd(P)/sqrt(n()),
+        lower.CL = mean_P - se_P,
+         upper.CL = mean_P + se_P)%>% 
+  ungroup()%>%
+  drop_na(mean_P)%>%
+  mutate(infect.tissue = paste(tapeworm_presence, tissue, sep = "_"))%>%
+  ggplot(aes(x=infect.tissue, y = P))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x=infect.tissue, y = P), pch=21, position = jitter, alpha=0.3)+
+  geom_point(aes(x= infect.tissue,y = mean_P,  color=infect.tissue), size=2)+
+  rita_theme+labs(x="", y="Stickleback %P")+
+  scale_color_manual(values=c("#636363", "#000000", "#000000"))+
+  guides(color=FALSE)+
+  scale_x_discrete(labels=c("no_percentP_fish" = "Host (uninfected)",
+                            "yes_P_infectpheno" = "Host + parasite",
+                            "yes_percentP_fish" = "Host (infected)"))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.0, hjust=0.0))
+
+t.test(infect.pheno$percentP_worm,infect.pheno$P_infectpheno, paired=TRUE)
+
+#jpeg(file="Stickleback_infectionphenotype.jpeg", width = 180, height = 90, units = 'mm', res = 300)
+ggarrange(C.pheno, N.pheno, P.pheno, nrow = 1)
+#dev.off()
 ```
 
 First paired t-test to asses whether stickleback and S. solidus elemental composition differ for infected individuals only
 
 ```{r host parasite stoichiometry t-test}
-stick_infected <- stickstoich %>% filter(tapeworm_presence == 'yes')  %>% filter(!ID ==20.030) #fish lacks paired CNP parasite data 
+stick_infected <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+  filter(!ID ==20.030)%>%
+  filter(!ID ==20.011) #fish lacks paired CNP parasite data; 030 no CNP done on worm, and 011 worm sample mass too small to get reliable measure 
 
 t.test(stick_infected$percentC_worm,stick_infected$percentC_fish, paired=TRUE)
 t.test(stick_infected$percentN_worm, stick_infected$percentN_fish, paired=TRUE)
 t.test(stick_infected$percentP_worm,stick_infected$percentP_fish, paired=TRUE)
 
-stick_meanC <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+stick_meanC <- stick_infected %>% filter(tapeworm_presence == 'yes') %>%
   summarise_at(c('percentC_fish', 'percentC_worm'),
                funs(mean, sd, se=sd(.)/sqrt(n()))
                )%>% mutate(Element = "C")
 
-stick_meanN <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+stick_meanN <- stick_infected%>% filter(tapeworm_presence == 'yes') %>%
   summarise_at(c( 'percentN_fish', 'percentN_worm'),        
                funs(mean, sd, se=sd(.)/sqrt(n()))
                )%>% mutate(Element = "N")
 
-stick_meanP <- stickstoich %>% filter(tapeworm_presence == 'yes') %>%
+stick_meanP <- stick_infected %>% filter(tapeworm_presence == 'yes') %>%
   summarise_at(c('percentP_fish', 'percentP_worm'), 
                funs(mean, sd, se=sd(.)/sqrt(n()))
                )%>% mutate(Element = "P")
@@ -88,6 +193,9 @@ t.test(stick_infected$NPmolar_cestode,stick_infected$NPmolar_fish, paired=TRUE)
 
 
 ```
+
+Correlation tests between host and parasite stoichiometry 
+
 ```{r host parasite stoichiometry correlation}
 cor.test(stick_infected$percentC_worm,stick_infected$percentC_fish)
 cor.test(stick_infected$percentN_worm, stick_infected$percentN_fish)
@@ -98,56 +206,58 @@ cor.test(stick_infected$CPmolar_fish, stick_infected$CPmolar_cestode)
 cor.test(stick_infected$NPmolar_fish,stick_infected$NPmolar_cestode)
 ```
 
+Graphics to display correlations or lack there of 
+
 ```{r stick and parasite correlation graphics}
 Carbon <-stickstoich%>% ggplot()+
-  geom_point(aes(x=percentC_fish, y = percentC_worm), pch=21, size=2)+rita_theme+ labs(x= "%C stickleback", y="%C schistocephalus")+
+  geom_point(aes(x=percentC_fish, y = percentC_worm), pch=21, size=2)+rita_theme+ labs(x= "stickleback %C", y=" S. solidus %C")+
   xlim(c(20,60))+   ylim(c(20,60)) +
-  geom_smooth(aes(x=percentC_fish, y = percentC_worm),method='lm',se=FALSE)+
+  geom_smooth(aes(x=percentC_fish, y = percentC_worm),method='lm',se=FALSE, col='#525252')+
   geom_abline(intercept = 0, slope = 1, lty=2)
 
 carbon.mod <-lm(percentC_worm~ percentC_fish, data=stickstoich)
 summary(carbon.mod)
 
 Nitrogen <-stickstoich%>% ggplot()+
-  geom_point(aes(x=percentN_fish, y = percentN_worm), pch=21, size=2)+rita_theme+ labs(x= "%N stickleback", y="%N schistocephalus")+
+  geom_point(aes(x=percentN_fish, y = percentN_worm), pch=21, size=2)+rita_theme+ labs(x= "stickleback %N ", y=" S. solidus %N")+
   xlim(c(5,14))+   ylim(c(5,14)) +
-    geom_smooth(aes(x=percentN_fish, y = percentN_worm),method='lm',se=FALSE)+
+    geom_smooth(aes(x=percentN_fish, y = percentN_worm),method='lm',se=FALSE, col='#525252')+
    geom_abline(intercept = 0, slope = 1, lty=2)
 
 nitrogen.mod <-lm(percentN_worm~ percentN_fish, data=stickstoich)
 summary(nitrogen.mod)
 
 Phosphorus <-stickstoich%>% ggplot()+
-  geom_point(aes(x=percentP_fish, y = percentP_worm), pch=21, size=2)+rita_theme+ labs(x= "%P stickleback", y="%P schistocephalus")+
+  geom_point(aes(x=percentP_fish, y = percentP_worm), pch=21, size=2)+rita_theme+ labs(x= "stickleback %P ", y="S. solidus %P ")+
    xlim(c(1,7))+   ylim(c(1,7)) +
-    geom_smooth(aes(x=percentP_fish, y = percentP_worm),method='lm',se=FALSE)+
+    geom_smooth(aes(x=percentP_fish, y = percentP_worm),method='lm',se=FALSE, col='#525252')+
    geom_abline(intercept = 0, slope = 1, lty=2)
 
 phosph.mod <-lm(percentP_worm~ percentP_fish, data=stickstoich)
 summary(phosph.mod)
 
 CN <-stickstoich%>% ggplot()+
-  geom_point(aes(x=CNmolar_fish, y = CNmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "C:N stickleback", y="C:N schistocephalus")+
+  geom_point(aes(x=CNmolar_fish, y = CNmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "stickleback C:N ", y="S. solidus C:N")+
   xlim(c(1,3.5))+   ylim(c(1,3.5)) +
-    geom_smooth(aes(x=CNmolar_fish, y = CNmolar_cestode),method='lm',se=FALSE)+
+    geom_smooth(aes(x=CNmolar_fish, y = CNmolar_cestode),method='lm',se=FALSE, col='#525252')+
    geom_abline(intercept = 0, slope = 1, lty=2)
 
 cn.mod <-lm(CNmolar_cestode~ CNmolar_fish, data=stickstoich)
 summary(cn.mod)
 
 CP <-stickstoich%>% ggplot()+
-  geom_point(aes(x=CPmolar_fish, y = CPmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "C:P stickleback", y="C:P schistocephalus")+
+  geom_point(aes(x=CPmolar_fish, y = CPmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "stickleback C:P ", y="S. solidus C:P")+
   xlim(c(6,40))+   ylim(c(6,40)) +
-    geom_smooth(aes(x=CPmolar_fish, y = CPmolar_cestode),method='lm',se=FALSE)+
+    geom_smooth(aes(x=CPmolar_fish, y = CPmolar_cestode),method='lm',se=FALSE, col='#525252')+
    geom_abline(intercept = 0, slope = 1, lty=2)
 
 cp.mod <-lm(CPmolar_cestode~ CPmolar_fish, data=stickstoich)
 summary(cp.mod)
 
 NP <-stickstoich%>% ggplot()+
-  geom_point(aes(x=NPmolar_fish, y = NPmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "N:P stickleback", y="N:P schistocephalus")+
+  geom_point(aes(x=NPmolar_fish, y = NPmolar_cestode), pch=21, size=2)+rita_theme+ labs(x= "stickleback N:P ", y=" S. solidus N:P")+
    xlim(c(2,25))+   ylim(c(2,25)) +
-    geom_smooth(aes(x=NPmolar_fish, y = NPmolar_cestode),method='lm',se=FALSE)+
+    geom_smooth(aes(x=NPmolar_fish, y = NPmolar_cestode),method='lm',se=FALSE, col='#525252')+
    geom_abline(intercept = 0, slope = 1, lty=2)
 
 np.mod <-lm(NPmolar_cestode~ NPmolar_fish, data=stickstoich)
@@ -155,35 +265,131 @@ summary(np.mod)
 
 #jpeg(file="Stickleback_CNP.jpeg", width = 270, height = 180, units = 'mm', res = 300)
 ggarrange(Carbon, Nitrogen, Phosphorus, 
-          CN, CP, NP, ncol=3, nrow=2)
+          CN, CP, NP, labels='auto',
+          ncol=3, nrow=2)
 #dev.off()
 ```
 Boxplot graphics for infection status and stoich
 
 ```{r infection related to host stoichiometry}
+
+jitter <- position_jitter(width = 0.1, height = 0)
+
 C.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
-  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= percentC_fish )) +rita_theme +labs(y="%C fish", x = "")
+  group_by(tapeworm_presence)%>%
+  mutate(mean_C = mean(percentC_fish),
+         sd_C = sd(percentC_fish),
+         se_C=sd(percentC_fish)/sqrt(n()),
+         lower.CL = mean_C - se_C,
+         upper.CL = mean_C + se_C)%>% ungroup()%>%
+  ggplot(aes(x=tapeworm_presence, y = mean_C))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x= tapeworm_presence, y= percentC_fish),position = jitter, pch=21, alpha=0.3) +
+  geom_point(aes(x=tapeworm_presence, y = mean_C), size=3)+
+  rita_theme +
+    labs(y="%C stickleback", x = "")+
+    scale_x_discrete(labels=c("no" = "uninfected", "yes" = "infected"))
 
 N.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
-  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= percentN_fish )) +rita_theme +labs(y="%N fish", x = "")
+  group_by(tapeworm_presence)%>%
+  mutate(mean_N = mean(percentN_fish),
+         sd_N = sd(percentN_fish),
+         se_N=sd(percentN_fish)/sqrt(n()),
+         lower.CL = mean_N - se_N,
+         upper.CL = mean_N + se_N)%>% ungroup()%>%
+  ggplot(aes(x=tapeworm_presence, y = mean_N))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x= tapeworm_presence, y= percentN_fish ),position = jitter, pch=21, alpha=0.3) +rita_theme +
+    geom_point(aes(x=tapeworm_presence, y = mean_N), size=3)+
+  labs(y="%N stickleback", x = "")+
+  scale_x_discrete(labels=c("no" = "uninfected", "yes" = "infected"))
 
 P.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
-  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= percentP_fish )) +rita_theme +labs(y="%P fish", x = "")
+  group_by(tapeworm_presence)%>%
+  mutate(mean_P = mean(percentP_fish),
+         sd_P = sd(percentP_fish),
+         se_P=sd(percentP_fish)/sqrt(n()),
+         lower.CL = mean_P - se_P,
+         upper.CL = mean_P + se_P)%>% ungroup()%>%
+  ggplot(aes(x=tapeworm_presence, y = mean_P))+
+    geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x= tapeworm_presence, y= percentP_fish),position = jitter, pch=21, alpha=0.3) +rita_theme +
+      geom_point(aes(x=tapeworm_presence, y = mean_P), size=3)+
+  labs(y="%P stickleback", x = "")+
+  scale_x_discrete(labels=c("no" = "uninfected", "yes" = "infected"))
 
 CN.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
-  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= CNmolar_fish )) +rita_theme +labs(y="C:N fish", x = "")
+  group_by(tapeworm_presence)%>%
+  mutate(mean_CN = mean(CNmolar_fish),
+         sd_CN = sd(CNmolar_fish),
+         se_CN=sd(CNmolar_fish)/sqrt(n()),
+          lower.CL = mean_CN - se_CN,
+         upper.CL = mean_CN + se_CN)%>% ungroup()%>%
+  ggplot(aes(x=tapeworm_presence, y = mean_CN))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x= tapeworm_presence, y= CNmolar_fish),position = jitter, pch=21, alpha=0.3) +rita_theme +
+  geom_point(aes(x=tapeworm_presence, y = mean_CN), size=3)+
+  labs(y="C:N stickleback", x = "")+
+    annotate('text', x = 1.5, y = 1.6, label='"*"', parse=TRUE, size=10)+
+  scale_x_discrete(labels=c("no" = "uninfected", "yes" = "infected"))
 
 CP.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
-  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= CPmolar_fish )) +rita_theme +labs(y="C:P fish", x = "")
+  group_by(tapeworm_presence)%>%
+  mutate(mean_CP = mean(CPmolar_fish),
+         sd_CP = sd(CPmolar_fish),
+         se_CP=sd(CPmolar_fish)/sqrt(n()),
+        lower.CL = mean_CP - se_CP,
+         upper.CL = mean_CP + se_CP)%>% ungroup()%>%
+  ggplot(aes(x=tapeworm_presence, y = mean_CP))+
+    geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x= tapeworm_presence, y= CPmolar_fish),position = jitter, pch=21, alpha=0.3) +rita_theme +
+    geom_point(aes(x=tapeworm_presence, y = mean_CP), size=3)+
+  labs(y="C:P stickleback", x = "")+
+  scale_x_discrete(labels=c("no" = "uninfected", "yes" = "infected"))
 
 NP.infect<-stickstoich %>% drop_na(tapeworm_presence)%>%
-  ggplot()+geom_boxplot(aes(x= tapeworm_presence, y= NPmolar_fish )) +rita_theme +labs(y="N:P fish", x = "")
+  group_by(tapeworm_presence)%>%
+  mutate(mean_NP = mean(NPmolar_fish),
+         sd_NP = sd(NPmolar_fish),
+         se_NP=sd(NPmolar_fish)/sqrt(n()),
+        lower.CL = mean_NP - se_NP,
+         upper.CL = mean_NP + se_NP)%>% ungroup()%>%
+  ggplot(aes(x=tapeworm_presence, y = mean_NP))+
+  geom_errorbar(aes(ymax = lower.CL, ymin = upper.CL), width = .2)+
+  geom_point(aes(x= tapeworm_presence, y= NPmolar_fish),position = jitter, pch=21, alpha=0.3) +rita_theme +
+      geom_point(aes(x=tapeworm_presence, y = mean_NP), size=3)+
+  labs(y="N:P stickleback", x = "")+
+  scale_x_discrete(labels=c("no" = "uninfected", "yes" = "infected"))
 
 #jpeg(file="Stickleback_infection_stoich.jpeg", width = 270, height = 180, units = 'mm', res = 300)
 ggarrange(C.infect, N.infect, P.infect,
           CN.infect, CP.infect, NP.infect, ncol=3, nrow=2)
 #dev.off()
 ```
+
+```{r modesl for infection and stoich}
+c.infection <-lm(percentC_fish ~ tapeworm_presence + log10(dry_weight_fish_mg), data= stickstoich)
+summary(c.infection)
+
+n.infection <-lm(percentN_fish ~ tapeworm_presence + log10(dry_weight_fish_mg), data= stickstoich)
+summary(n.infection)
+
+p.infection <-lm(percentP_fish ~ tapeworm_presence + log10(dry_weight_fish_mg), data= stickstoich)
+summary(p.infection)
+
+
+cn.infection <-lm(CNmolar_fish ~ tapeworm_presence + log10(dry_weight_fish_mg), data= stickstoich)
+summary(cn.infection)
+
+cp.infection <-lm(CPmolar_fish ~ tapeworm_presence + log10(dry_weight_fish_mg), data= stickstoich)
+summary(cp.infection)
+
+np.infection <-lm(NPmolar_fish ~ tapeworm_presence + log10(dry_weight_fish_mg), data= stickstoich)
+summary(np.infection)
+
+
+```
+
 Now for infection intensity and stoich 
 Graphic and then linear models for ratios 
 
@@ -197,7 +403,7 @@ stickstoich %>%
   geom_smooth(aes(x= tapeworm_intensity, y = CNmolar_fish), method='lm', se=FALSE, col='black', lty=2)+
   labs(x="", y="C:N fish")
 
-cn.infection <-lm(CNmolar_fish ~ tapeworm_intensity + log10(standard_length_mm), data= stickstoich)
+cn.infection <-lm(CNmolar_fish ~ tapeworm_intensity + log10(dry_weight_fish_mg), data= stickstoich)
 summary(cn.infection)
 
 library(effects)
@@ -218,7 +424,7 @@ allCN <- ggplot(x, aes(x = tapeworm_intensity, y = fit)) +
   geom_line(size = 1, lty=2) +
   geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
-  labs(x="", y="C:N fish")
+  labs(x="", y="C:N stickleback")
 #################################
 stickstoich %>%
   ggplot() +
@@ -228,7 +434,7 @@ stickstoich %>%
  # geom_smooth(aes(x= tapeworm_intensity, y = CPmolar_fish), method='lm', se=FALSE, col='black', lty=2)+
   labs(x="", y="C:P fish")
 
-cp.infection <-lm(CPmolar_fish ~ tapeworm_intensity + log10(standard_length_mm), data= stickstoich)
+cp.infection <-lm(CPmolar_fish ~ tapeworm_intensity + log10(dry_weight_fish_mg), data= stickstoich)
 summary(cp.infection)
 
 #extract partial residuals for graphics 
@@ -239,14 +445,14 @@ closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 
 x.fit <- unlist(cp.est$x.all)
 trans <- I
 x <- data.frame(lower = cp.est$lower, upper = cp.est$upper, fit = cp.est$fit, tapeworm_intensity = cp.est$x$tapeworm_intensity)
-xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x2.fit), x$tapeworm_intensity)] + cp.est$residuals)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$tapeworm_intensity)] + cp.est$residuals)
 
 allCP <- ggplot(x, aes(x = tapeworm_intensity, y = fit)) +
   rita_theme+
 #  geom_line(size = 1, lty=2) +
   geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
  # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
-  labs(x="", y="C:P fish")
+  labs(x="", y="C:P stickleback")
 #################################
 stickstoich %>%
   ggplot() +
@@ -256,7 +462,7 @@ stickstoich %>%
  # geom_smooth(aes(x= tapeworm_intensity, y = NPmolar_fish), method='lm', se=FALSE, col='black', lty=2)+
   labs(x="S. solidus infection intensity", y="N:P fish")
 
-np.infection <-lm(NPmolar_fish ~ tapeworm_intensity + log10(standard_length_mm), data= stickstoich)
+np.infection <-lm(NPmolar_fish ~ tapeworm_intensity + log10(dry_weight_fish_mg), data= stickstoich)
 summary(np.infection)
 
 #extract partial residuals for graphics 
@@ -267,18 +473,271 @@ closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 
 x.fit <- unlist(np.est$x.all)
 trans <- I
 x <- data.frame(lower = np.est$lower, upper = np.est$upper, fit = np.est$fit, tapeworm_intensity = np.est$x$tapeworm_intensity)
-xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x2.fit), x$tapeworm_intensity)] + np.est$residuals)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$tapeworm_intensity)] + np.est$residuals)
 
 allNP <- ggplot(x, aes(x = tapeworm_intensity, y = fit)) +
   rita_theme+
  # geom_line(size = 1, lty=2) +
   geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
 #  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
-  labs(x="S. solidus infection intensity", y="N:P fish")
+  labs(x="S. solidus infection intensity", y="N:P stickleback")
 
 #jpeg(file="Stickleback_intensity_CNP.jpeg", width = 90, height = 250, units = 'mm', res = 300)
-ggarrange(allCN, allCP, allNP, nrow=3, ncol=1)
+ggarrange(allCN, allCP, allNP, labels='auto',nrow=3, ncol=1)
 #dev.off()
 
 
+```
+
+
+Parasite stoichiometry
+```{r parasite stoichiometry}
+
+# filter by infected hosts first
+# remove parasites that not analyzed for CNP and had incorrect mass put in
+parasite <-stickstoich %>% filter(tapeworm_presence =='yes') %>%
+  filter(!ID ==20.030) %>% # no CNP analysis done for this worm 
+  filter(!ID==20.039) %>% # sample mass appears to be wrong; can't use mass measurements of worm
+  filter(!ID ==20.011) %>% # sample mass of worm is too small to get a reliable CNP value based on past experience
+  mutate(parasite_density = log10(tapeworm_intensity/dry_weight_fish_mg),
+         log_parasite_mass = log10(dry_weight_worm_mg))
+
+##################### models
+# carbon
+C.parasite <- lm(percentC_worm ~ log_parasite_mass + parasite_density#
+                 ,data= parasite)
+summary(C.parasite)
+C.est<-Effect('parasite_density', partial.residuals=T, C.parasite)
+C.est2<-Effect('log_parasite_mass', partial.residuals=T, C.parasite)
+
+plot(C.est)
+plot(C.est2)
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(C.est$x.all)
+trans <- I
+x <- data.frame(lower = C.est$lower, upper = C.est$upper, fit = C.est$fit, parasite_density = C.est$x$parasite_density)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$parasite_density)] + C.est$residuals)
+
+
+C_density <- ggplot(x, aes(x = parasite_density, y = fit)) +
+  rita_theme+
+#  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+#  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus density", y="S. solidus %C")
+
+C.est2<-Effect('log_parasite_mass', partial.residuals=T, C.parasite)
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(C.est2$x.all)
+trans <- I
+x <- data.frame(lower = C.est2$lower, upper = C.est2$upper, fit = C.est2$fit, log_parasite_mass = C.est2$x$log_parasite_mass)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$log_parasite_mass)] + C.est2$residuals)
+
+C_mass <- ggplot(x, aes(x = log_parasite_mass, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus body mass", y="S. solidus %C")
+
+#####################
+# nitrogen
+N.parasite <- lm(percentN_worm ~ log_parasite_mass + parasite_density
+                 , data= parasite)
+summary(N.parasite)
+N.est<-Effect('parasite_density', partial.residuals=T, N.parasite)
+N.est2<-Effect('log_parasite_mass', partial.residuals=T, N.parasite)
+
+plot(N.est)
+plot(N.est2)
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(N.est$x.all)
+trans <- I
+x <- data.frame(lower = N.est$lower, upper = N.est$upper, fit = N.est$fit, parasite_density = N.est$x$parasite_density)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$parasite_density)] + N.est$residuals)
+
+N_density <- ggplot(x, aes(x = parasite_density, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus density", y="S. solidus %N")
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(N.est2$x.all)
+trans <- I
+x <- data.frame(lower = N.est2$lower, upper = N.est2$upper, fit = N.est2$fit, log_parasite_mass = N.est2$x$log_parasite_mass)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$log_parasite_mass)] + N.est2$residuals)
+
+N_mass <- ggplot(x, aes(x = log_parasite_mass, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus body mass", y="S. solidus %N")
+
+#####################
+#phosphorus 
+P.parasite <- lm((percentP_worm) ~ log_parasite_mass + parasite_density
+                 , data= parasite)
+summary(P.parasite)
+P.est<-Effect('parasite_density', partial.residuals=T, P.parasite)
+P.est2<-Effect('log_parasite_mass', partial.residuals=T, P.parasite)
+
+plot(P.est)
+plot(P.est2)
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(P.est$x.all)
+trans <- I
+x <- data.frame(lower = P.est$lower, upper = P.est$upper, fit = P.est$fit, parasite_density = P.est$x$parasite_density)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$parasite_density)] + P.est$residuals)
+
+P_density <- ggplot(x, aes(x = parasite_density, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus density", y="S. solidus %P")
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(P.est2$x.all)
+trans <- I
+x <- data.frame(lower = P.est2$lower, upper = P.est2$upper, fit = P.est2$fit, log_parasite_mass = P.est2$x$log_parasite_mass)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$log_parasite_mass)] + P.est2$residuals)
+
+P_mass <- ggplot(x, aes(x = log_parasite_mass, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus body mass", y="S. solidus [%P]")
+
+jpeg(file="Schistocephalus_CNP.jpeg", width = 180, height = 250, units = 'mm', res = 300)
+ggarrange(C_mass, C_density,
+          N_mass, N_density,
+          P_mass, P_density, ncol=2, nrow=3, labels='auto')
+dev.off()
+```
+
+Now for elemental ratios
+```{r parasite elmental ratios}
+##################### models
+# c:n
+CN.parasite <- lm(CNmolar_cestode ~ log_parasite_mass + parasite_density#
+                 ,data= parasite)
+summary(CN.parasite)
+CN.est<-Effect('parasite_density', partial.residuals=T, CN.parasite)
+CN.est2<-Effect('log_parasite_mass', partial.residuals=T, CN.parasite)
+
+plot(CN.est)
+plot(CN.est2)
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(CN.est$x.all)
+trans <- I
+x <- data.frame(lower = CN.est$lower, upper = CN.est$upper, fit = CN.est$fit, parasite_density = CN.est$x$parasite_density)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$parasite_density)] + CN.est$residuals)
+
+CN_density <- ggplot(x, aes(x = parasite_density, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus density", y="S. solidus C:N")
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(CN.est2$x.all)
+trans <- I
+x <- data.frame(lower = CN.est2$lower, upper = CN.est2$upper, fit = CN.est2$fit, log_parasite_mass = CN.est2$x$log_parasite_mass)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$log_parasite_mass)] + CN.est2$residuals)
+
+CN_mass <- ggplot(x, aes(x = log_parasite_mass, y = fit)) +
+  rita_theme+
+ # geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  #geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus body mass", y="S. solidus C:N")
+
+###############
+# C:P
+CP.parasite <- lm(CPmolar_cestode ~ log_parasite_mass + parasite_density
+                 , data= parasite)
+summary(CP.parasite)
+CP.est<-Effect('parasite_density', partial.residuals=T, CP.parasite)
+CP.est2<-Effect('log_parasite_mass', partial.residuals=T, CP.parasite)
+
+plot(CP.est)
+plot(CP.est2)
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(CP.est$x.all)
+trans <- I
+x <- data.frame(lower = CP.est$lower, upper = CP.est$upper, fit = CP.est$fit, parasite_density = CP.est$x$parasite_density)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$parasite_density)] + CP.est$residuals)
+
+CP_density <- ggplot(x, aes(x = parasite_density, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus density", y="S. solidus C:P")
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(CP.est2$x.all)
+trans <- I
+x <- data.frame(lower = CP.est2$lower, upper = CP.est2$upper, fit = CP.est2$fit, log_parasite_mass = CP.est2$x$log_parasite_mass)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$log_parasite_mass)] + CP.est2$residuals)
+
+CP_mass <- ggplot(x, aes(x = log_parasite_mass, y = fit)) +
+  rita_theme+
+  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus body mass", y="S. solidus C:P")
+
+###############
+#N:P
+NP.parasite <- lm(NPmolar_cestode ~ log_parasite_mass + parasite_density
+                 , data= parasite)
+summary(NP.parasite)
+NP.est<-Effect('parasite_density', partial.residuals=T, NP.parasite)
+NP.est2<-Effect('log_parasite_mass', partial.residuals=T, NP.parasite)
+
+plot(NP.est)
+plot(NP.est2)
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(NP.est$x.all)
+trans <- I
+x <- data.frame(lower = NP.est$lower, upper = NP.est$upper, fit = NP.est$fit, parasite_density = NP.est$x$parasite_density)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$parasite_density)] + NP.est$residuals)
+
+NP_density <- ggplot(x, aes(x = parasite_density, y = fit)) +
+  rita_theme+
+#  geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+ # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus density", y="S. solidus N:P")
+
+closest <- function(x, x0) apply(outer(x, x0, FUN=function(x, x0) abs(x - x0)), 1, which.min)
+x.fit <- unlist(NP.est2$x.all)
+trans <- I
+x <- data.frame(lower = NP.est2$lower, upper = NP.est2$upper, fit = NP.est2$fit, log_parasite_mass = NP.est2$x$log_parasite_mass)
+xy <- data.frame(x = x.fit, y = x$fit[closest(trans(x.fit), x$log_parasite_mass)] + NP.est2$residuals)
+
+NP_mass <- ggplot(x, aes(x = log_parasite_mass, y = fit)) +
+  rita_theme+
+ # geom_line(size = 1, lty=2) +
+  geom_point(data = xy, aes(x = x, y = y), shape = 1, col = "black", size = 2) +
+#  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)+
+  labs(x="log10 S. solidus body mass", y="S. solidus N:P")
+
+#jpeg(file="Schistocephalus_CNPratios.jpeg", width = 180, height = 250, units = 'mm', res = 300)
+ggarrange(CN_mass, CN_density,
+          CP_mass, CP_density,
+          NP_mass, NP_density, ncol=2, nrow=3, labels = 'auto')
+#dev.off()
 ```
